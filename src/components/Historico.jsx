@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Receipt, Calendar, CreditCard, Banknote } from 'lucide-react';
+import { Clock, Receipt, Calendar, CreditCard, Banknote, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function Historico() {
@@ -8,7 +8,7 @@ export default function Historico() {
 
   const fetchVendas = async () => {
     setLoading(true);
-    // Busca as vendas da mais recente para a mais antiga
+    // Busca as vendas usando a coluna correta 'data_venda'
     const { data, error } = await supabase
       .from('vendas')
       .select('*')
@@ -18,12 +18,33 @@ export default function Historico() {
     setLoading(false);
   };
 
+  // Função para apagar TODO o histórico
+  const limparHistorico = async () => {
+    const confirmar = window.confirm("⚠️ Tem certeza que deseja APAGAR TODO o histórico de vendas? Esta ação não pode ser desfeita.");
+    
+    if (confirmar) {
+      // No Supabase, para deletar tudo precisamos de um filtro. 
+      // Como o ID é um UUID, filtramos por IDs que não sejam vazios.
+      const { error } = await supabase
+        .from('vendas')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); 
+
+      if (error) {
+        alert("Erro ao limpar histórico: " + error.message);
+      } else {
+        setVendas([]); // Limpa a lista na tela imediatamente
+        alert("Histórico apagado com sucesso!");
+      }
+    }
+  };
+
   useEffect(() => {
     fetchVendas();
   }, []);
 
-  // Função para formatar a data bonitinha (Ex: 01/04/2026 às 14:30)
   const formatarData = (dataString) => {
+    if(!dataString) return "";
     const data = new Date(dataString);
     return new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit', month: '2-digit', year: 'numeric',
@@ -36,28 +57,40 @@ export default function Historico() {
   return (
     <div className="space-y-6 pb-20 text-graphite animate-in fade-in">
       
-      {/* Cabeçalho */}
-      <div className="bg-brand-pink text-white p-6 rounded-3xl shadow-sm flex items-center gap-4">
-        <div className="bg-white/20 p-3 rounded-2xl">
-          <Clock size={28} />
+      {/* Cabeçalho com Botão de Limpar */}
+      <div className="bg-brand-pink text-white p-6 rounded-3xl shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="bg-white/20 p-3 rounded-2xl">
+            <Clock size={28} />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Histórico</h2>
+            <p className="text-xs text-pink-100 mt-1">Suas vendas salvas.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-bold">Histórico de Vendas</h2>
-          <p className="text-xs text-pink-100 mt-1">Acompanhe tudo o que você já vendeu.</p>
-        </div>
+        
+        {/* Botão de Lixeira */}
+        {vendas.length > 0 && (
+          <button 
+            onClick={limparHistorico}
+            className="p-3 bg-white/10 hover:bg-white/20 rounded-2xl transition-colors"
+            title="Limpar histórico"
+          >
+            <Trash2 size={20} />
+          </button>
+        )}
       </div>
 
       <div className="space-y-4">
         {vendas.length === 0 ? (
           <div className="bg-white p-8 rounded-3xl text-center border border-slate-100 shadow-sm flex flex-col items-center gap-3">
             <Receipt className="text-slate-300" size={40} />
-            <p className="text-sm text-slate-400">Nenhuma venda registrada ainda.<br/>Vá para o PDV e faça sua primeira venda!</p>
+            <p className="text-sm text-slate-400">Nenhuma venda registrada ainda.</p>
           </div>
         ) : (
           vendas.map((venda) => (
             <div key={venda.id} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 space-y-4">
               
-              {/* Topo do Card da Venda */}
               <div className="flex justify-between items-start border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2 text-slate-500">
                   <Calendar size={16} />
@@ -69,29 +102,28 @@ export default function Historico() {
                 </div>
               </div>
 
-              {/* Lista de Itens Vendidos */}
               <div className="space-y-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Itens da Venda</p>
                 {venda.itens_json && venda.itens_json.map((item, index) => (
                   <div key={index} className="flex justify-between text-sm">
                     <span className="text-slate-700">
                       <span className="font-bold text-slate-900">{item.quantidade}x</span> {item.nome}
                     </span>
-                    <span className="text-slate-500">R$ {item.subtotal.toFixed(2)}</span>
+                    <span className="text-slate-500">R$ {Number(item.subtotal).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
 
-              {/* Total da Venda */}
               <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
                 <span className="text-sm font-bold text-slate-500">Total Pago:</span>
-                <span className="text-lg font-black text-brand-pink">R$ {venda.valor_total.toFixed(2)}</span>
+                <span className="text-lg font-black text-brand-pink">R$ {Number(venda.valor_total).toFixed(2)}</span>
               </div>
-
             </div>
           ))
         )}
       </div>
+    </div>
+  );
+}
 
     </div>
   );
